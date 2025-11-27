@@ -1,0 +1,18 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.out
+*.aligned.fasta
+*.fasta
+*.msa
+*.xml
+
+# Our project data
+data/
+notebooks/
