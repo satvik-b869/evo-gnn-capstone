@@ -13,6 +13,10 @@ NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 def index():
     return render_template("index.html")
 
+@app.route("/step1")
+def step1():
+    return render_template("step1.html")
+
 @app.route("/generate_msa", methods=["POST"])
 def generate_msa():
     print("🟢 Received request")
