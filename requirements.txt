@@ -1,0 +1,11 @@
+numpy
+scipy
+biopython
+matplotlib
+torch
+torch-geometric
+scikit-learn
+jupyter
+flask
+requests
+

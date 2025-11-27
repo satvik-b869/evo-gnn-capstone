@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Protein MSA Generator</title>
+  <meta charset="UTF-8">
+  <style>
+    body { 
+      font-family: Arial; 
+      margin: 40px; 
+      background: #f6f6f6;
+    }
+    textarea {
+      width: 100%; 
+      height: 150px; 
+      font-size: 14px;
+    }
+    pre {
+      background: #eee;
+      padding: 15px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 20px; 
+      background: #007bff;
+      color: white; 
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056d2;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Protein MSA Generator</h1>
+
+<form id="msaForm">
+  <label>Paste your protein sequence:</label><br>
+  <textarea name="sequence" id="seqInput"></textarea><br><br>
+  <button type="submit">Generate MSA</button>
+</form>
+
+<h2>MSA Output:</h2>
+<pre id="msaOutput">(nothing yet)</pre>
+
+<script>
+document.getElementById("msaForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const seq = document.getElementById("seqInput").value;
+
+  const formData = new FormData();
+  formData.append("sequence", seq);
+
+  let resp = await fetch("/generate_msa", {
+    method: "POST",
+    body: formData
+  });
+
+  let data = await resp.json();
+
+  if (data.error) {
+    document.getElementById("msaOutput").textContent = "ERROR: " + data.error;
+  } else {
+    document.getElementById("msaOutput").textContent = data.msa;
+  }
+});
+</script>
+
+</body>
+</html>

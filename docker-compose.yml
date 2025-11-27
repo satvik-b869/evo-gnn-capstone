@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  msa_server:
+    build: ./mmseqs2-msaserver
+    container_name: msa_server
+    ports:
+      - "8080:8080"   # MMseqs2 MSA API
+    restart: always
+
+  webapp:
+    build: ./webapp
+    container_name: evo_webapp
+    ports:
+      - "5000:5000"   # Flask UI
+    environment:
+      - MSA_SERVER_URL=http://msa_server:8080/msa
+    depends_on:
+      - msa_server
+    restart: always
