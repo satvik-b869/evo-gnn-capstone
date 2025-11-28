@@ -1,13 +1,27 @@
+
 from flask import Flask, render_template, request, jsonify
 import requests
 import time
 from msa_builder import run_msa
+from compute_di import compute_di
+from moduleb import compute_graph_embeddings
+from modulec import compute_coordinates
+from moduled import build_pseudo_backbone
+import numpy as np
 
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
+
+# 🔥 Added: global storage for last seq_array
+LAST_SEQ_ARRAY = None
+LAST_DI_MATRIX = None
+LAST_EIGENVECTORS = None
+
+
+
 
 @app.route("/")
 def index():
@@ -17,11 +31,26 @@ def index():
 def step1():
     return render_template("step1.html")
 
+@app.route("/moduleb")
+def moduleb():
+    return render_template("moduleb.html")
+
+@app.route("/modulec")
+def modulec():
+    return render_template("modulec.html")
+
+@app.route("/moduled")
+def moduled():
+    return render_template("moduled.html")
+
+
 @app.route("/generate_msa", methods=["POST"])
 def generate_msa():
+    global LAST_SEQ_ARRAY   # <— Added so we can assign to global variable
+
     print("🟢 Received request")
 
-    start_time = time.time()  # TIMER START
+    start_time = time.time()
     print("⏳ Timer started...")
 
     seq = request.form.get("sequence", "").strip()
@@ -106,7 +135,7 @@ def generate_msa():
         print("⚠ WARNING: BLAST output has no FASTA headers — using Sbjct parser.")
 
     # -----------------------------------------
-    # 3B. Extract aligned sequences from BLAST pairwise output
+    # 3B. Extract aligned sequences
     # -----------------------------------------
     seq_array = []
     current_seq = ""
@@ -114,26 +143,27 @@ def generate_msa():
     for line in aligned.splitlines():
         line = line.strip()
 
-        # New sequence begins
         if line.startswith(">"):
             if current_seq:
                 seq_array.append(current_seq)
                 current_seq = ""
             continue
 
-        # Extract Sbjct fragments
         if line.startswith("Sbjct"):
             parts = line.split()
             if len(parts) >= 3:
                 seq_fragment = parts[2]
                 current_seq += seq_fragment
 
-    # add the final sequence
     if current_seq:
         seq_array.append(current_seq)
 
     print(f"Extracted {len(seq_array)} clean sequences.")
     print(seq_array)
+
+    # 🔥 Save globally for Step 1 page to use later
+    LAST_SEQ_ARRAY = seq_array
+
     msa_result = run_msa(seq_array)
 
     if "error" in msa_result:
@@ -144,19 +174,13 @@ def generate_msa():
         aligned_final = msa_result["aligned_fasta"]
         print(aligned_final)
 
-
-
-    # -----------------------------------------
-    # TIMER END
-    # -----------------------------------------
+    # Timer end
     end_time = time.time()
     duration = round(end_time - start_time, 2)
     print(f"⏱ Total BLAST+Parse Time: {duration} seconds")
 
-    # -----------------------------------------
-    # 4. RETURN EVERYTHING
-    # -----------------------------------------
     print("Returning MSA + sequence array")
+
 
     return jsonify({
         "status": "success",
@@ -165,6 +189,110 @@ def generate_msa():
         "msa_array": seq_array,
         "msa_muscle": aligned_final
     })
+
+
+# --------------------------------------------------------
+# 🔥 NEW ENDPOINT: Step1.html will call this on page load
+# --------------------------------------------------------
+@app.route("/compute_di_now", methods=["GET"])
+def compute_di_now():
+    global LAST_SEQ_ARRAY, LAST_DI_MATRIX
+
+    if LAST_SEQ_ARRAY is None:
+        return jsonify({"error": "No MSA stored. Run alignment first."}), 400
+
+    try:
+        # Compute DI
+        di_result = compute_di(LAST_SEQ_ARRAY)
+
+        # Save DI matrix globally for Module B
+        LAST_DI_MATRIX = di_result["di_matrix"].tolist()
+
+        # Return response to Step1.html
+        return jsonify({
+            "status": "success",
+            "di_matrix": LAST_DI_MATRIX,
+            "di_graph": di_result["di_graph"]
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/compute_moduleb")
+def compute_moduleb():
+    global LAST_DI_MATRIX, LAST_EIGENVECTORS
+
+    if LAST_DI_MATRIX is None:
+        return jsonify({"error": "No DI matrix available yet"}), 400
+
+    try:
+        di_mat = np.array(LAST_DI_MATRIX)
+        result = compute_graph_embeddings(di_mat, k=8)
+
+        # Save eigenvectors so Module C can access them
+        LAST_EIGENVECTORS = result["eigenvectors"]
+
+        return jsonify({
+            "laplacian": result["laplacian"].tolist(),
+            "eigenvalues": result["eigenvalues"].tolist(),
+            "eigenvectors": result["eigenvectors"].tolist(),
+            "embeddings": result["embeddings"].tolist()
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/compute_modulec")
+def compute_modulec():
+    global LAST_EIGENVECTORS
+
+    if LAST_EIGENVECTORS is None:
+        return jsonify({"error": "No eigenvectors available yet"}), 400
+
+    try:
+        eigenvectors = np.array(LAST_EIGENVECTORS)
+
+        coords_2d = compute_coordinates(eigenvectors, dim=2)
+
+        # Only compute 3D if eigenvectors have ≥ 3 components
+        if eigenvectors.shape[1] >= 3:
+            coords_3d = compute_coordinates(eigenvectors, dim=3)
+            coords_3d_list = coords_3d.tolist()
+        else:
+            coords_3d_list = None
+
+        return jsonify({
+            "status": "success",
+            "coords_2d": coords_2d.tolist(),
+            "coords_3d": coords_3d_list
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/compute_moduled", methods=["GET"])
+def compute_moduled():
+    global LAST_EIGENVECTORS
+
+    if LAST_EIGENVECTORS is None:
+        return jsonify({"error": "No eigenvectors available. Run Module B first."}), 400
+
+    try:
+        evecs = np.array(LAST_EIGENVECTORS, dtype=float)
+        result = build_pseudo_backbone(evecs, target_ca_dist=3.8)
+
+        return jsonify({
+            "status": "success",
+            "coords_3d": result["coords_3d"].tolist(),
+            "pdb": result["pdb_string"],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)

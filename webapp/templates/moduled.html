@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Module D — Pseudo-Folded Backbone 🧬</title>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<!-- NGL Viewer -->
+<script src="https://unpkg.com/ngl@latest/dist/ngl.js"></script>
+
+<style>
+  body {
+    margin: 0;
+    padding: 40px;
+    background: #0f0f0f;
+    font-family: "Inter", sans-serif;
+    color: white;
+    display: flex;
+    justify-content: center;
+  }
+
+  .container {
+    width: 95%;
+    background: #1a1a1a;
+    border-radius: 20px;
+    padding: 40px;
+    border: 1px solid #2a2a2a;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 32px;
+    color: #b8f7ff;
+    margin-bottom: 10px;
+  }
+
+  p {
+    text-align: center;
+    color: #cccccc;
+    margin-bottom: 25px;
+  }
+
+  .viewer-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 30px;
+  }
+
+  #plot3d, #nglViewport {
+    width: 50%;
+    height: 700px;
+    border-radius: 12px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 160px;
+    margin-top: 25px;
+    border-radius: 10px;
+    background: #111;
+    color: #9ae8d1;
+    border: 1px solid #333;
+    padding: 10px;
+  }
+
+  button {
+    margin-top: 20px;
+    padding: 12px 24px;
+    border-radius: 14px;
+    border: none;
+    background: #7de6b8;
+    color: black;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: #9af6cb; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <h1>Module D — Pseudo-Folded Backbone 🧬</h1>
+  <p>This structure is generated directly from your spectral embedding.<br>
+     Left = mathematical 3D embedding; Right = protein-style tube/cartoon.</p>
+
+  <!-- Visualization row -->
+  <div class="viewer-row">
+    <div id="plot3d"></div>
+    <div id="nglViewport"></div>
+  </div>
+
+  <!-- PDB text -->
+  <h3>Pseudo-Fold PDB Output</h3>
+  <textarea id="pdbBox" readonly></textarea>
+
+  <button onclick="downloadPDB()">Download PDB</button>
+  <button onclick="window.location.href='modulec'">← Back</button>
+
+</div>
+
+<script>
+let pdbText = "";
+
+// =====================================================
+// Load pseudo-fold from backend
+// =====================================================
+async function loadBackbone() {
+    const res = await fetch("/compute_moduled");
+    const data = await res.json();
+
+    if (data.error) {
+        alert("Error: " + data.error);
+        return;
+    }
+
+    // FIXED LINE ↓↓↓↓↓↓
+    const coords = data.coords_3d;   // correct key
+    // END FIX
+
+    pdbText = data.pdb;
+
+    document.getElementById("pdbBox").value = pdbText;
+
+    // Split XYZ for Plotly
+    const x = coords.map(p => p[0]);
+    const y = coords.map(p => p[1]);
+    const z = coords.map(p => p[2]);
+
+    // Plotly 3D line + points
+    const trace = {
+        x: x, y: y, z: z,
+        mode: "lines+markers",
+        line: { color: "#7ce8ff", width: 4 },
+        marker: { size: 3, color: "#fff" }
+    };
+
+    const layout = {
+        scene: {
+            xaxis: { title: "X" },
+            yaxis: { title: "Y" },
+            zaxis: { title: "Z" },
+            bgcolor: "#1a1a1a"
+        },
+        paper_bgcolor: "#1a1a1a",
+        plot_bgcolor: "#1a1a1a"
+    };
+
+    Plotly.newPlot("plot3d", [trace], layout);
+
+    // NGL viewer
+    renderNGL(pdbText);
+}
+
+// =====================================================
+// NGL VIEWER RENDERER
+// =====================================================
+function renderNGL(pdbString) {
+    const stage = new NGL.Stage("nglViewport", { backgroundColor: "black" });
+
+    window.addEventListener("resize", () => stage.handleResize());
+
+    const blob = new Blob([pdbString], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+
+    stage.loadFile(url, { ext: "pdb" }).then(comp => {
+        comp.addRepresentation("tube", {
+            radius: 0.4,
+            colorScheme: "residueindex"
+        });
+        comp.autoView();
+    });
+}
+
+// =====================================================
+// Download button
+// =====================================================
+function downloadPDB() {
+    const blob = new Blob([pdbText], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "pseudo_fold.pdb";
+    link.click();
+}
+
+loadBackbone();
+</script>
+
+</body>
+</html>

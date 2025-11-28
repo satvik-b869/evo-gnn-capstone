@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Module B — Graph Eigenanalysis</title>
+
+<style>
+  body {
+    margin: 0;
+    padding: 40px;
+    background: #0f0f0f;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: white;
+    display: flex;
+    justify-content: center;
+  }
+
+  .container {
+    width: 850px;
+    background: #1a1a1a;
+    border-radius: 20px;
+    padding: 40px;
+    border: 1px solid #2a2a2a;
+    box-shadow: 0 0 30px rgba(0,0,0,0.35);
+  }
+
+  h1 {
+    color: #d3f8d3;
+    font-size: 30px;
+    text-align: center;
+    margin-bottom: 15px;
+  }
+
+  h2 {
+    color: #b4f7ff;
+    margin-top: 30px;
+    font-size: 22px;
+  }
+
+  p {
+    color: #cfcfcf;
+    font-size: 16px;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+
+  button {
+    margin-top: 40px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 14px;
+    background: #88d4a7;
+    color: #000;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  button:hover {
+    background: #9ce8ba;
+    transform: translateY(-2px);
+  }
+
+  pre {
+    background: #111;
+    padding: 14px;
+    border-radius: 10px;
+    overflow-x: auto;
+    max-height: 350px;
+    border: 1px solid #2a2a2a;
+    color: #bbf7bb;
+  }
+
+  #loading {
+    text-align: center;
+    font-size: 18px;
+    color: #90cfff;
+    margin-top: 20px;
+  }
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h1>Module B — Graph Eigenanalysis</h1>
+
+  <p>We now transform the DI graph into graph embeddings using:
+     <br>❖ Graph Laplacian
+     <br>❖ Spectral eigenvectors
+     <br>❖ Final residue embeddings
+  </p>
+
+  <div id="loading">⏳ Computing spectral graph embeddings…</div>
+
+  <!-- RESULTS SECTION (hidden initially) -->
+  <div id="results" style="display:none;">
+
+    <h2>Eigenvalues (first k)</h2>
+    <pre id="eigenvalues"></pre>
+
+    <h2>Eigenvectors (preview)</h2>
+    <pre id="eigenvectors"></pre>
+
+    <h2>Residue Embeddings (preview)</h2>
+    <pre id="embeddings"></pre>
+
+    <button onclick="window.location.href='/modulec'" 
+            id="next_button" style="display:none;">
+      Next → Module C
+    </button>
+
+    <button onclick="window.location.href='/step1'"
+            style="margin-top:20px;">
+      Back to Step 1
+    </button>
+
+  </div>
+</div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("Module B loaded — requesting graph embeddings…");
+
+    fetch("/compute_moduleb")
+      .then(res => res.json())
+      .then(data => {
+          if (data.error) {
+              document.getElementById("loading").textContent =
+                "❌ Error: " + data.error;
+              return;
+          }
+
+          console.log("Eigenvalues:", data.eigenvalues);
+          console.log("Eigenvectors:", data.eigenvectors);
+          console.log("Embeddings:", data.embeddings);
+
+          // Hide loading
+          document.getElementById("loading").style.display = "none";
+          document.getElementById("results").style.display = "block";
+
+          // Pretty-print the results
+          document.getElementById("eigenvalues").textContent =
+            JSON.stringify(data.eigenvalues, null, 2);
+
+          // Only show first few rows/cols of eigenvectors (avoid huge dump)
+          let evec = data.eigenvectors.slice(0, 10)
+                    .map(row => row.slice(0, 5));
+          document.getElementById("eigenvectors").textContent =
+            JSON.stringify(evec, null, 2);
+
+          // Only show first few embeddings
+          let embPreview = data.embeddings.slice(0, 5)
+              .map(vec => vec.slice(0, 15)); // first 15 dims only
+          document.getElementById("embeddings").textContent =
+            JSON.stringify(embPreview, null, 2);
+
+          // Show NEXT button
+          document.getElementById("next_button").style.display = "block";
+      })
+      .catch(err => {
+          document.getElementById("loading").textContent =
+            "❌ Network error: " + err;
+      });
+});
+</script>
+
+</body>
+</html>

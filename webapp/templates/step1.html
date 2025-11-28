@@ -57,6 +57,27 @@
     background: #9ce8ba;
     transform: translateY(-2px);
   }
+
+  #loading {
+    text-align: center;
+    color: #9dd7ff;
+    font-size: 16px;
+    margin-top: 30px;
+  }
+
+  #di_section {
+    margin-top: 35px;
+  }
+
+  pre {
+    background: #111;
+    padding: 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+    max-height: 350px;
+    color: #b5f5b5;
+    border: 1px solid #2a2a2a;
+  }
 </style>
 </head>
 
@@ -66,13 +87,66 @@
   <h1>Step 1 — MSA Completed 🎉</h1>
 
   <p>Your multiple sequence alignment is generated successfully.<br>
-  This next section is where we begin **Module A’s real algorithmic pipeline**.</p>
+  Now we move into **Direct Coupling & Residue Graph Construction**.</p>
 
-  <p>Tell me what you want Step 1 to do next (embedding extraction? filtering? visualization?).</p>
+  <p>Loading DI Graph data… this may take a few seconds depending on MSA size.</p>
 
-  <button onclick="window.location.href='index.html'">Back</button>
+  <!-- Loading Indicator -->
+  <div id="loading">⏳ Computing Direct Information (DI)…</div>
 
+  <!-- DI Output -->
+  <div id="di_section" style="display:none;">
+    <button id="next_button" style="display:none; margin-top:20px;"
+        onclick="window.location.href='/moduleb'">
+    Next → Module B
+    </button>
+    <h2 style="text-align:center; color:#d3f8d3; margin-top:10px;">Direct Information Graph</h2>
+    <p id="edge_count"></p>
+    <pre id="di_output"></pre>
+  </div>
+
+  <button onclick="window.location.href='/index'">Back</button>
 </div>
+
+
+<script>
+// Fetch DI graph when the page loads
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("Step1.html loaded — requesting DI graph...");
+
+    fetch("/compute_di_now")
+      .then(res => res.json())
+      .then(data => {
+          // Error case
+          if (data.error) {
+              document.getElementById("loading").textContent =
+                  "❌ DI computation failed: " + data.error;
+              return;
+          }
+
+          // Success
+          console.log("DI Matrix:", data.di_matrix);
+          console.log("DI Graph:", data.di_graph);
+
+          document.getElementById("loading").style.display = "none";
+          document.getElementById("di_section").style.display = "block";
+          document.getElementById("next_button").style.display = "block";
+
+
+          // How many edges?
+          document.getElementById("edge_count").innerHTML =
+              `<b>${data.di_graph.length}</b> high-scoring residue-residue couplings`;
+
+          // Pretty print
+          document.getElementById("di_output").textContent =
+              JSON.stringify(data.di_graph, null, 2);
+      })
+      .catch(err => {
+          document.getElementById("loading").textContent =
+              "❌ Network error: " + err;
+      });
+});
+</script>
 
 </body>
 </html>
